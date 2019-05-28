@@ -145,6 +145,7 @@ function! s:define_commands()
   command! -nargs=0 -bar PlugUpgrade if s:upgrade() | execute 'source' s:esc(s:me) | endif
   command! -nargs=0 -bar PlugStatus  call s:status()
   command! -nargs=0 -bar PlugDiff    call s:diff()
+  command! -nargs=0 -bar PlugCommit  call s:commit()
   command! -nargs=? -bar -bang -complete=file PlugSnapshot call s:snapshot(<bang>0, <f-args>)
 endfunction
 
@@ -731,6 +732,7 @@ function! s:finish_bindings()
   nnoremap <silent> <buffer> R  :call <SID>retry()<cr>
   nnoremap <silent> <buffer> D  :PlugDiff<cr>
   nnoremap <silent> <buffer> S  :PlugStatus<cr>
+  nnoremap <silent> <buffer> C  :PlugCommit<cr>
   nnoremap <silent> <buffer> U  :call <SID>status_update()<cr>
   xnoremap <silent> <buffer> U  :call <SID>status_update()<cr>
   nnoremap <silent> <buffer> ]] :silent! call <SID>section('')<cr>
@@ -2405,6 +2407,35 @@ function! s:append_ul(lnum, text)
   call append(a:lnum, ['', a:text, repeat('-', len(a:text))])
 endfunction
 
+function! s:commit() abort
+  if &ft !=# 'vim-plug'
+    return s:err('PlugCommit must be called from plugin diff view.')
+  endif
+
+  let plugin_name = ''
+  let plugin = ''
+  let commit = ''
+  try
+    for lnum in reverse(range(5, line('.')-1))
+      let plugin_name = matchstr(
+            \ getline(lnum), '^-\s\+\zs.\+\ze:')
+      if !empty(plugin_name)
+        break
+      endif
+    endfor
+    let plugin = g:plugs[plugin_name]
+
+    let commit = matchstr(
+          \ getline('.'), '\s\+\*\s\+\zs\w\+\ze')
+    let uri = matchstr(plugin['uri'], '^\zs.\+\ze\.git$')
+    let cmd = 'silent !open '.uri.'/commit/'. commit
+    execute cmd
+  catch
+    let exception = 'Unable to determine plugin commit - must run PlugCommit from commit line in PlugDiff view.'
+    return s:err(exception)
+  endtry
+endfunction
+
 function! s:diff()
   call s:prepare()
   call append(0, ['Collecting changes ...', ''])
@@ -2453,7 +2484,7 @@ function! s:diff()
   endif
   if cnts[0]
     nnoremap <silent> <buffer> X :call <SID>revert()<cr>
-    echo "Press 'X' on each block to revert the update"
+    echo "Press 'X' on each block to revert the update / Press 'C' on a commit to view details in browser"
   endif
   normal! gg
   setlocal nomodifiable
